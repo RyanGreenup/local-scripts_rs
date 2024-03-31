@@ -5,4 +5,5 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.5.4", features = ["derive"] }
+duct = "0.13.7"
 walkdir = "2.5.0"

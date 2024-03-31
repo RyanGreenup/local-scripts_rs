@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 use clap::{Parser, Subcommand};
+use duct::cmd;
 
 /// This is a collection of scripts to do amazing things
 /// On this system all shell scripts should be migrated into this tool
@@ -39,6 +40,10 @@ enum Commands {
         #[arg(short, long)]
         relative: bool,
 
+        /// The name of the execubale to use as the editor
+        #[arg(short, long)]
+        editor: Option<String>,
+
         #[command(subcommand)]
         command: Option<NotesCommands>,
     },
@@ -46,11 +51,15 @@ enum Commands {
 
 #[derive(Subcommand)]
 enum NotesCommands {
+    /// List Notes
     List {
         /// Exlcude Journal notes
         #[arg(short, long)]
         exclude_journal: bool,
     },
+
+    /// use Fzf to select a note and open in $EDITOR
+    Find {},
 }
 
 fn main() {
@@ -80,10 +89,22 @@ fn main() {
         Some(Commands::Notes {
             relative,
             command,
+            editor,
         }) => {
             let mut files = get_notes(*relative);
+            // Get editor from the EDITOR var
+            let editor = std::env::var("EDITOR").unwrap_or("nvim".to_string());
 
             match command {
+                Some(NotesCommands::Find {}) => {
+                    let selected = notes_fzf(*relative);
+                    if selected.len() > 0 {
+                        let selected = selected[0].clone();
+                        let selected = format!("{}/{}", get_notes_dir(), selected);
+                        println!("{}", selected);
+                        cmd!(editor, selected).run().expect("Failed to open editor");
+                    }
+                }
                 Some(NotesCommands::List { exclude_journal }) => {
                     if *exclude_journal {
                         // filter out anything with journal in the name
@@ -137,4 +158,11 @@ fn get_notes(relative: bool) -> Vec<String> {
         }
     }
     notes
+}
+
+fn notes_fzf(relative: bool) -> Vec<String> {
+    let notes = get_notes(relative);
+    let notes = notes.join("\n");
+    let fzf = cmd!("fzf").stdin_bytes(notes.as_bytes()).read();
+    fzf.unwrap().split("\n").map(|s| s.to_string()).collect()
 }
