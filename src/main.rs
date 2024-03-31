@@ -1,5 +1,4 @@
 use std::path::PathBuf;
-
 use clap::{Parser, Subcommand};
 
 /// This is a collection of scripts to do amazing things
@@ -36,9 +35,21 @@ enum Commands {
     },
 
     Notes {
-        /// lists notes
+        /// Use Absolute paths
         #[arg(short, long)]
-        list: bool,
+        relative: bool,
+
+        #[command(subcommand)]
+        command: Option<NotesCommands>,
+    },
+}
+
+#[derive(Subcommand)]
+enum NotesCommands {
+    List {
+        /// Exlcude Journal notes
+        #[arg(short, long)]
+        exclude_journal: bool,
     },
 }
 
@@ -66,11 +77,27 @@ fn main() {
     // You can check for the existence of subcommands, and if found use their
     // matches just as you would the top level cmd
     match &cli.command {
-        Some(Commands::Notes { list }) => {
-            if *list {
-                println!("Printing notes lists...");
-            } else {
-                println!("Not printing notes lists...");
+        Some(Commands::Notes {
+            relative,
+            command,
+        }) => {
+            let mut files = get_notes(*relative);
+
+            match command {
+                Some(NotesCommands::List { exclude_journal }) => {
+                    if *exclude_journal {
+                        // filter out anything with journal in the name
+                        files = files
+                            .into_iter()
+                            .filter(|f| !f.contains("/journal"))
+                            .filter(|f| !f.contains(".journal"))
+                            .collect();
+                    }
+                    for file in files {
+                        println!("{}", file);
+                    }
+                }
+                None => {}
             }
         }
         Some(Commands::Test { list }) => {
@@ -84,4 +111,30 @@ fn main() {
     }
 
     // Continued program logic goes here...
+}
+
+fn get_notes_dir() -> String {
+    let home = std::env::var("HOME").expect("No $HOME variable found");
+    format!("{home}/Notes/slipbox")
+}
+
+fn get_notes(relative: bool) -> Vec<String> {
+    let mut notes = vec![];
+    for entry in walkdir::WalkDir::new(get_notes_dir()) {
+        let entry = entry.unwrap();
+        let path = entry.path();
+        if path.is_file() {
+            if relative {
+                notes.push(
+                    path.strip_prefix(get_notes_dir())
+                        .unwrap()
+                        .display()
+                        .to_string(),
+                );
+            } else {
+                notes.push(path.display().to_string());
+            }
+        }
+    }
+    notes
 }
