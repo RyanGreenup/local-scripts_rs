@@ -4,7 +4,9 @@ use clap::{Parser, Subcommand};
 
 /// This is a collection of scripts to do amazing things
 /// On this system all shell scripts should be migrated into this tool
-/// or python under ~/.local/scripts/{python,rust}
+/// or python under ~/.local/scripts/{python,rust}.
+/// Scripts are in modules but one module, one language, all the note stuff
+/// Is in python right now because it mostly just shells out.
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -29,6 +31,12 @@ enum Commands {
     /// does testing things
     Test {
         /// lists test values
+        #[arg(short, long)]
+        list: bool,
+    },
+
+    Notes {
+        /// lists notes
         #[arg(short, long)]
         list: bool,
     },
@@ -58,6 +66,13 @@ fn main() {
     // You can check for the existence of subcommands, and if found use their
     // matches just as you would the top level cmd
     match &cli.command {
+        Some(Commands::Notes { list }) => {
+            if *list {
+                println!("Printing notes lists...");
+            } else {
+                println!("Not printing notes lists...");
+            }
+        }
         Some(Commands::Test { list }) => {
             if *list {
                 println!("Printing testing lists...");
