@@ -160,9 +160,13 @@ fn get_notes(relative: bool) -> Vec<String> {
     notes
 }
 
+/// Use fzf to select a note and open in $EDITOR
+/// TODO abstract this so it can be used in other places
 fn notes_fzf(relative: bool) -> Vec<String> {
     let notes = get_notes(relative);
     let notes = notes.join("\n");
-    let fzf = cmd!("fzf").stdin_bytes(notes.as_bytes()).read();
+    let notes_dir = get_notes_dir();
+    let preview_cmd = format!("bat {}/{{}} --color=always --style=snip", notes_dir);
+    let fzf = cmd!("fzf", "--preview", preview_cmd).stdin_bytes(notes.as_bytes()).read();
     fzf.unwrap().split("\n").map(|s| s.to_string()).collect()
 }
