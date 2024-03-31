@@ -1,6 +1,11 @@
-use std::path::PathBuf;
 use clap::{Parser, Subcommand};
 use duct::cmd;
+use std::path::PathBuf;
+
+mod utils;
+mod wm;
+
+use wm::take_screenshot;
 
 /// This is a collection of scripts to do amazing things
 /// On this system all shell scripts should be migrated into this tool
@@ -35,6 +40,11 @@ enum Commands {
         list: bool,
     },
 
+    Wm {
+        #[command(subcommand)]
+        command: Option<WmCommands>,
+    },
+
     Notes {
         /// Use Absolute paths
         #[arg(short, long)]
@@ -46,6 +56,20 @@ enum Commands {
 
         #[command(subcommand)]
         command: Option<NotesCommands>,
+    },
+}
+
+#[derive(Subcommand)]
+enum WmCommands {
+    /// Take a screenshot
+    Screenshot {
+        /// The name of the output file
+        #[arg(short, long)]
+        output: Option<String>,
+
+        /// Copies the screenshot to the clipboard
+        #[arg(short, long)]
+        clipboard: bool,
     },
 }
 
@@ -86,14 +110,32 @@ fn main() {
     // You can check for the existence of subcommands, and if found use their
     // matches just as you would the top level cmd
     match &cli.command {
+        Some(Commands::Wm { command }) => {
+            match command {
+                Some(WmCommands::Screenshot { output, clipboard }) => {
+                    // TODO this should just be take_screenshot().
+                    take_screenshot::main(output.clone(), *clipboard);
+                }
+                None => {}
+            }
+        }
         Some(Commands::Notes {
             relative,
             command,
             editor,
         }) => {
             let mut files = get_notes(*relative);
-            // Get editor from the EDITOR var
-            let editor = std::env::var("EDITOR").unwrap_or("nvim".to_string());
+
+            let editor = match editor {
+                Some(editor) => {
+                    // Use the provided editor (TODO check if binary exists?)
+                    editor.clone()
+                }
+                None => {
+                    // Get editor from the EDITOR var
+                    std::env::var("EDITOR").unwrap_or("nvim".to_string())
+                }
+            };
 
             match command {
                 Some(NotesCommands::Find {}) => {
@@ -167,6 +209,9 @@ fn notes_fzf(relative: bool) -> Vec<String> {
     let notes = notes.join("\n");
     let notes_dir = get_notes_dir();
     let preview_cmd = format!("bat {}/{{}} --color=always --style=snip", notes_dir);
-    let fzf = cmd!("fzf", "--preview", preview_cmd).stdin_bytes(notes.as_bytes()).read();
+    let chooser = "fzf"; // sk or fzf or fzy
+    let fzf = cmd!(chooser, "--preview", preview_cmd)
+        .stdin_bytes(notes.as_bytes())
+        .read();
     fzf.unwrap().split("\n").map(|s| s.to_string()).collect()
 }
