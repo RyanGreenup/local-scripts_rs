@@ -6,6 +6,8 @@ mod utils;
 mod wm;
 
 use wm::take_screenshot;
+use wm::take_screenshot::get_clipboard;
+use wm::take_screenshot::set_clipboard;
 
 /// This is a collection of scripts to do amazing things
 /// On this system all shell scripts should be migrated into this tool
@@ -84,6 +86,16 @@ enum NotesCommands {
 
     /// use Fzf to select a note and open in $EDITOR
     Find {},
+
+    /// Create a Subpage under source from a title in the clipboard
+    /// e.g. `slipbox notes subpage --source /path/to/source.md`
+    /// If the clipboard contains "Title of the Page" it will create a file
+    /// "/path/to/source.title-of-the-page.md"
+    SubPage {
+        /// The Note the link will be inserted to
+        #[arg(short, long)]
+        source: String,
+    },
 }
 
 fn main() {
@@ -146,6 +158,45 @@ fn main() {
                         println!("{}", selected);
                         cmd!(editor, selected).run().expect("Failed to open editor");
                     }
+                }
+                Some(NotesCommands::SubPage { source }) => {
+                    let title = get_clipboard().unwrap_or_else(|| {
+                        panic!("Failed to get clipboard contents");
+                    });
+                    let source_file = std::path::Path::new(&source);
+                    let ext = source_file
+                        .extension()
+                        .unwrap_or_else(|| {
+                            panic!("Failed to get extension of {:#?}", source_file);
+                        })
+                        .to_str()
+                        .unwrap_or_else(|| {
+                            panic!("Failed to convert extension to string {:#?}", source_file);
+                        });
+                    let filename = title_to_filename(&title, ext);
+                    // combine the filename with the source directory
+                    let source_dir = source_file.parent().unwrap_or_else(|| {
+                        panic!("Failed to get parent directory of {:#?}", source_file);
+                    });
+                    // strip extension off basename
+                    let root = source_file
+                        .file_stem()
+                        .unwrap_or_else(|| {
+                            panic!("Failed to get file stem of {:#?}", source_file);
+                        })
+                        .to_str()
+                        .unwrap_or_else(|| {
+                            panic!("Failed to convert file stem to string {:#?}", source_file);
+                        });
+                    let filename = format!("{root}.{filename}");
+                    let filename = source_dir.join(filename);
+                    let filename = filename.display().to_string();
+                    let link = format!("[{title}]({filename})");
+                    set_clipboard(link.clone()).unwrap_or_else(|e| {
+                        eprintln!("Failed to set clipboard contents");
+                        eprintln!("{}", e);
+                    });
+                    println!("{}", link);
                 }
                 Some(NotesCommands::List { exclude_journal }) => {
                     if *exclude_journal {
@@ -214,4 +265,31 @@ fn notes_fzf(relative: bool) -> Vec<String> {
         .stdin_bytes(notes.as_bytes())
         .read();
     fzf.unwrap().split("\n").map(|s| s.to_string()).collect()
+}
+
+fn split_basename(path: &str) -> (std::path::PathBuf, String) {
+    let path = std::path::Path::new(path);
+    let name = path
+        .file_name()
+        .unwrap_or_else(|| panic!("Failed to get file name from path {:#?}", path))
+        .to_str()
+        .unwrap_or_else(|| panic!("Failed to convert file name to string {:#?}", path))
+        .to_string();
+    let dir = path
+        .parent()
+        .unwrap_or_else(|| panic!("Failed to get parent directory of {:#?}", path))
+        .to_path_buf();
+    (dir, name)
+}
+
+fn title_to_filename(title: &str, ext: &str) -> String {
+    let mut filename: String = title.to_owned().clone();
+    // Title to filename
+    filename = filename.replace(" / ", ".");
+    for bad in vec![" ", ":", ",", "."] {
+        filename = filename.replace(bad, "-");
+    }
+    filename = filename.replace("/", ".");
+    filename = format!("{filename}.{ext}");
+    filename
 }

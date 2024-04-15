@@ -66,3 +66,32 @@ fn x11_screenshot(output: String, clipboard: bool) {
         }
     }
 }
+
+pub fn get_clipboard() -> Option<String> {
+    match get_display() {
+        DisplayServer::Wayland => return cmd!("wl-paste").read().ok(),
+        DisplayServer::X11 => return cmd!("xclip", "-o").read().ok(),
+        DisplayServer::Other => {
+            todo!("Screenshot only implemented for wayland and X11");
+        }
+    }
+}
+
+pub fn set_clipboard(input: String) -> std::result::Result<(), std::io::Error> {
+    match get_display() {
+        DisplayServer::Wayland => {
+            cmd!("wl-copy").stdin_bytes(input).stdout_capture().run()?;
+            Ok(())
+        }
+        DisplayServer::X11 => {
+            cmd!("xclip").stdin_bytes(input).stdout_capture().run()?;
+            Ok(())
+        }
+        DisplayServer::Other => {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Clibpoard only implemented for wayland and X11",
+            ));
+        }
+    }
+}
