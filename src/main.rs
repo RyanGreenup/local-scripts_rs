@@ -285,8 +285,9 @@ fn split_basename(path: &str) -> (std::path::PathBuf, String) {
 fn title_to_filename(title: &str, ext: &str) -> String {
     let mut filename: String = title.to_owned().clone();
     // Title to filename
+    filename = filename.replace(".", "-");
     filename = filename.replace(" / ", ".");
-    for bad in vec![" ", ":", ",", "."] {
+    for bad in vec![" ", ":", ","] {
         filename = filename.replace(bad, "-");
     }
     filename = filename.replace("/", ".");
